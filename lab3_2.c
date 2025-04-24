@@ -6,6 +6,22 @@
 #include <sys/stat.h> // mkdir
 #include <libgen.h> // basename
 #include <fcntl.h> // O_WRONLY, O_CREAT, O_TRUNC и тд
+#include <limits.h> // Для PATH_MAX
+
+int create_dir(char *argv[]);
+int list_dir(char *argv[]);
+int remove_dir(char *argv[]);
+int create_file(char *argv[]);
+int print_file(char *argv[]);
+int remove_file(char *argv[]);
+int create_symlink(char *argv[]);
+int print_symlink(char *argv[]);
+int print_symlink_file(char *argv[]);
+int remove_symlink(char *argv[]);
+int create_hardlink(char *argv[]);
+int remove_hardlink(char *argv[]);
+int print_file_info(char *argv[]);
+int change_file_rights(char *argv[]);
 
 struct command {
     char *name;
@@ -71,15 +87,92 @@ int list_dir(char *argv[]) {
 }
 
 // c - удалить каталог, указанный в аргументе
+
+int remove_directory_recursive(const char *path) {
+    DIR *dir = opendir(path);
+    if (!dir) {
+        // Если не удалось открыть как каталог, возможно, это файл
+        if (unlink(path) != 0) {
+            perror("Ошибка unlink");
+            return -1;
+        }
+        return 0;
+    }
+
+    struct dirent *entry;
+    int result = 0;
+
+    while ((entry = readdir(dir)) != NULL) {
+        // Пропускаем "." и ".."
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        // Формируем полный путь к элементу
+        char entry_path[PATH_MAX];
+        snprintf(entry_path, sizeof(entry_path), "%s/%s", path, entry->d_name);
+
+        // Получаем информацию о файле без следования симлинкам
+        struct stat entry_stat;
+        if (lstat(entry_path, &entry_stat) == -1) {
+            perror("Ошибка lstat");
+            result = -1;
+            continue;
+        }
+
+        // Рекурсивно удаляем подкаталоги
+        if (S_ISDIR(entry_stat.st_mode)) {
+            if (remove_directory_recursive(entry_path) != 0) {
+                result = -1;
+            }
+        } else { 
+            // Удаляем файлы и симлинки
+            if (unlink(entry_path) != 0) {
+                perror("Ошибка unlink");
+                result = -1;
+            }
+        }
+    }
+
+    closedir(dir);
+
+    // Удаляем текущий каталог после очистки
+    if (rmdir(path) != 0) {
+        perror("Ошибка rmdir");
+        result = -1;
+    }
+
+    return result;
+}
+
 int remove_dir(char *argv[]) {
-    if (rmdir(argv[1]) != 0) {
-        printf("ошибка rmdir при удалении каталога: %s\n", argv[1]);
+    if (!argv[1]) {
+        printf("Не указан путь к каталогу\n");
         return -1;
     }
 
+    const char *path = argv[1];
+    struct stat statbuf;
+
+    // Проверяем, существует ли путь
+    if (lstat(path, &statbuf) != 0) {
+        perror("Ошибка доступа к пути");
+        return -1;
+    }
+
+    // Убедимся, что это каталог (симлинки на каталоги обрабатываем как файлы)
+    if (!S_ISDIR(statbuf.st_mode)) {
+        printf("%s не является каталогом\n", path);
+        return -1;
+    }
+    
+    // Вызываем рекурсивное удаление
+    if (remove_directory_recursive(path) != 0) {
+        printf("Не удалось удалить каталог %s\n", path);
+        return -1;
+    }
     return 0;
 }
-
 // d - создать файл, указанный в аргументе
 int create_file(char *argv[]) {
     int fd = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0755);
