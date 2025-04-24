@@ -52,16 +52,31 @@ struct command entries[] = {
 
 // a - создать каталог, переданный аргументом
 int create_dir(char *argv[]) {
-    if (mkdir(argv[1], 0755) != 0) {
-        printf("ошибка mkdir при создании каталога: %s\n", argv[1]);
+   if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь каталога\n");
+        return -1;
+    }
+    
+    if (strlen(argv[1]) >= PATH_MAX) {
+        fprintf(stderr, "Ошибка: слишком длинный путь\n");
         return -1;
     }
 
+    if (mkdir(argv[1], 0755) != 0) {
+        perror("Ошибка mkdir");
+        return -1;
+    }
     return 0;
 }
 
 // b - вывести содержимое каталога, указанного в аргументе
 int list_dir(char *argv[]) {
+
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь каталога\n");
+        return -1;
+    }
+    
     DIR *dir = opendir(argv[1]);
     if (!dir) {
         printf("ошибка opendir при открытии каталога: %s\n", argv[1]);
@@ -147,7 +162,7 @@ int remove_directory_recursive(const char *path) {
 
 int remove_dir(char *argv[]) {
     if (!argv[1]) {
-        printf("Не указан путь к каталогу\n");
+        fprintf(stderr, "Ошибка: требуется аргумент - путь каталога\n");
         return -1;
     }
 
@@ -175,6 +190,11 @@ int remove_dir(char *argv[]) {
 }
 // d - создать файл, указанный в аргументе
 int create_file(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь файла\n");
+        return -1;
+    }
+    
     int fd = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0755);
     if (fd == -1) {
         printf("ошибка open при создании файла: %s\n", argv[1]);
@@ -187,6 +207,11 @@ int create_file(char *argv[]) {
 
 // e - вывести содержимое файла, указанного в аргументе
 int print_file(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь файла\n");
+        return -1;
+    }
+    
     FILE *file = fopen(argv[1], "r");
     if (!file) {
         printf("ошибка fopen при открытии файла: %s\n", argv[1]);
@@ -206,6 +231,11 @@ int print_file(char *argv[]) {
 
 // f - удалить файл, указанный в аргументе
 int remove_file(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь файла\n");
+        return -1;
+    }
+    
     if (remove(argv[1]) != 0) {
         printf("ошибка remove при удалении файла: %s\n", argv[1]);
         return -1;
@@ -216,6 +246,11 @@ int remove_file(char *argv[]) {
 
 // g - создать символьную ссылку на файл, указанный в аргументе
 int create_symlink(char *argv[]) {
+    if (!argv[1] || !argv[2]) {
+        fprintf(stderr, "Ошибка: требуется два аргумента - исходный файл и ссылка\n");
+        return -1;
+    }
+    
     if (symlink(argv[1], argv[2])) {
         printf("ошибка symlink при создании символьной ссылки: %s -> %s\n", argv[1], argv[2]);
         return -1;
@@ -226,6 +261,10 @@ int create_symlink(char *argv[]) {
 
 // h - вывести содержимое символьной ссылки, указанный в аргументе
 int print_symlink(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь симлинка\n");
+        return -1;
+    }
     char buf[1024];
     // int readlink(const char *path, char *buf, size_t bufsiz);
     // помещает содержимое символьной ссылки path в буфер buf длиной bufsiz
@@ -243,6 +282,10 @@ int print_symlink(char *argv[]) {
 
 // i - вывести содержимое файла, на который указывает символьная ссылка, указанная в аргументе
 int print_symlink_file(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь симлинки\n");
+        return -1;
+    }
     char buf[1024];
     int len = readlink(argv[1], buf, sizeof(buf)-1);
     if (len == -1) {
@@ -262,6 +305,10 @@ int print_symlink_file(char *argv[]) {
 
 // j - удалить символьную ссылку на файл, указанный в аргументе
 int remove_symlink(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь файла\n");
+        return -1;
+    }
     if (unlink(argv[1]) != 0) {
         printf("ошибка unlink при удалении символьной ссылки: %s\n", argv[1]);
         return -1;
@@ -272,6 +319,11 @@ int remove_symlink(char *argv[]) {
 
 // k - создать жесткую ссылку на файл, указанный в аргументе
 int create_hardlink(char *argv[]) {
+    if (!argv[1] || !argv[2]) {
+        fprintf(stderr, "Ошибка: требуется два аргумента - исходный файл и ссылка\n");
+        return -1;
+    }
+    
     if (link(argv[1], argv[2]) != 0) {
         printf("Ошибка link при создании жесткой ссылки: %s -> %s\n", argv[1], argv[2]);
         return -1;
@@ -282,6 +334,10 @@ int create_hardlink(char *argv[]) {
 
 // l - удалить жесткую ссылку на файл, указанный в аргументе
 int remove_hardlink(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь хардлинки\n");
+        return -1;
+    }
     if (unlink(argv[1]) != 0) {
         printf("Ошибка удаления ссылки: %s\n", argv[1]);
         return -1;
@@ -292,6 +348,10 @@ int remove_hardlink(char *argv[]) {
 
 // m - вывести права доступа к файлу, указанному в аргументе и количество жестких ссылок на него
 int print_file_info(char *argv[]) {
+    if (!argv[1]) {
+        fprintf(stderr, "Ошибка: требуется аргумент - путь файла\n");
+        return -1;
+    }
     struct stat st;
     if (stat(argv[1], &st) != 0) {
         printf("Ошибка stat при получении метаданных файла: %s\n", argv[1]);
@@ -306,30 +366,35 @@ int print_file_info(char *argv[]) {
 }
 
 // n - изменить права доступа к файлу, указанному в аргументе
+// Convert a string to a long integer.
+// long strtol(const char *start, char **end, int radix)
+// выбрал восьмиричную систему счисления тк права доступа до 7 включительно
 int change_file_rights(char *argv[]) {
-    // Convert a string to a long integer.
-    // long strtol(const char *start, char **end, int radix)
-    // выбрал восьмиричную систему счисления тк права доступа до 7 включительно
-    mode_t new_mode = strtol(argv[2], NULL, 8);
-    if (chmod(argv[1], new_mode) != 0) {
-        printf("ошибка chmod при изменении прав доступа к файлу: %s\n", argv[1]);
+    if (!argv[1] || !argv[2]) {
+        fprintf(stderr, "Ошибка: требуется два аргумента - путь файла и права (восьмеричное число)\n");
         return -1;
     }
 
+    // Проверка корректности формата прав
+    char *endptr;
+    long mode = strtol(argv[2], &endptr, 8);
+    if (*endptr != '\0' || mode < 0 || mode > 0777) {
+        fprintf(stderr, "Ошибка: неверный формат прав. Используйте восьмеричное число (например 755)\n");
+        return -1;
+    }
+
+    if (chmod(argv[1], (mode_t)mode) != 0) {
+        perror("Ошибка chmod");
+        return -1;
+    }
     return 0;
 }
 
-
-
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("неверное количество аргументов\n");
-        return -1;
-    }
-
+    
     char *cmd = basename(argv[0]);
-
     int i;
+    
     for (i = 0; entries[i].name != NULL; i++) {
         if (strcmp(cmd, entries[i].name) == 0) {
             if (entries[i].func(argv) == 0) {
