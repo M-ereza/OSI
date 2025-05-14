@@ -93,6 +93,71 @@ int copy_file_reversed(const char *src_path, const char *dest_path) {
 
 }
 
+void process_directory(const char *src_dir, const char *dest_dir) {
+    DIR *dir = opendir(src_dir);
+    if (!dir) {
+        perror("Error opening source directory");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        char full_src_path[PATH_MAX];
+        if (snprintf(full_src_path, sizeof(full_src_path), "%s/%s", src_dir, entry->d_name) >= (int)sizeof(full_src_path)) {
+            fprintf(stderr, "Path too long: %s/%s\n", src_dir, entry->d_name);
+            continue;
+        }
+
+        struct stat st;
+        if (lstat(full_src_path, &st) < 0) {
+            perror("Error getting file status");
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            char reversed_name[NAME_MAX];
+            reverse_string(entry->d_name, reversed_name, sizeof(reversed_name));
+
+            char full_dest_path[PATH_MAX];
+            if (snprintf(full_dest_path, sizeof(full_dest_path), "%s/%s", dest_dir, reversed_name) >= (int)sizeof(full_dest_path)) {
+                fprintf(stderr, "Path too long: %s/%s\n", dest_dir, reversed_name);
+                continue;
+            }
+
+            if (mkdir(full_dest_path, st.st_mode) < 0 && errno != EEXIST) {
+                perror("Error creating target directory");
+                continue;
+            }
+
+            process_directory(full_src_path, full_dest_path);
+            
+            } else if (S_ISREG(st.st_mode)) {
+            
+            char reversed_file_name[NAME_MAX];
+            reverse_string(entry->d_name, reversed_file_name, sizeof(reversed_file_name));
+
+            char full_dest_path[PATH_MAX];
+            
+            if (snprintf(full_dest_path, sizeof(full_dest_path), "%s/%s", dest_dir, reversed_file_name) >= (int)sizeof(full_dest_path)) {
+                fprintf(stderr, "Path too long: %s/%s\n", dest_dir, reversed_file_name);
+                continue;
+            }
+
+            if (copy_file_reversed(full_src_path, full_dest_path) != 0) {
+                fprintf(stderr, "Failed to copy: %s -> %s\n", full_src_path, full_dest_path);
+            }
+        } else {
+            fprintf(stderr, "Skipping non-regular file: %s\n", full_src_path);
+        }
+    }
+
+    closedir(dir);
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <directory>\n", argv[0]);
@@ -105,77 +170,32 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Обрабатываем пути
-    char src_path_copy[PATH_MAX];
+  char src_path_copy[PATH_MAX];
     strncpy(src_path_copy, argv[1], sizeof(src_path_copy));
-    src_path_copy[sizeof(src_path_copy)-1] = '\0';
-    
+    src_path_copy[sizeof(src_path_copy) - 1] = '\0';
+
     char parent_dir[PATH_MAX];
-    char src_dir_name[PATH_MAX];
-    char reversed_dir_name[PATH_MAX];
-    
-    // Получаем родительский каталог
     strncpy(parent_dir, dirname(src_path_copy), sizeof(parent_dir));
-    
-    // Получаем имя исходного каталога
+
     strncpy(src_path_copy, argv[1], sizeof(src_path_copy));
+    char src_dir_name[PATH_MAX];
     strncpy(src_dir_name, basename(src_path_copy), sizeof(src_dir_name));
+
+    char reversed_dir_name[PATH_MAX];
     reverse_string(src_dir_name, reversed_dir_name, sizeof(reversed_dir_name));
 
-    // Формируем целевой путь
     char target_path[PATH_MAX];
-    if (snprintf(target_path, sizeof(target_path), "%s/%s", 
-                parent_dir, reversed_dir_name) >= sizeof(target_path)) {
+    if (snprintf(target_path, sizeof(target_path), "%s/%s", parent_dir, reversed_dir_name) >= sizeof(target_path)) {
         fprintf(stderr, "Path too long: %s/%s\n", parent_dir, reversed_dir_name);
         return 1;
     }
 
-    // Создаем целевой каталог
     if (mkdir(target_path, st.st_mode) < 0 && errno != EEXIST) {
         perror("Error creating target directory");
         return 1;
     }
 
-    DIR *dir = opendir(argv[1]);
-    if (!dir) {
-        perror("Error opening source directory");
-        return 1;
-    }
+    process_directory(argv[1], target_path);
 
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-        continue;
-        }
-        char full_src_path[PATH_MAX];
-        if (snprintf(full_src_path, sizeof(full_src_path), 
-                    "%s/%s", argv[1], entry->d_name) >= sizeof(full_src_path)) {
-            fprintf(stderr, "Path too long: %s/%s\n", argv[1], entry->d_name);
-            continue;
-        }
-
-        struct stat file_stat;
-        if (stat(full_src_path, &file_stat) < 0 || !S_ISREG(file_stat.st_mode)) {
-            fprintf(stderr, "Skipping non-regular file: %s\n", full_src_path);
-            continue;
-        }
-
-        char reversed_file_name[NAME_MAX];
-        reverse_string(entry->d_name, reversed_file_name, sizeof(reversed_file_name));
-
-        char full_dest_path[PATH_MAX];
-        if (snprintf(full_dest_path, sizeof(full_dest_path), 
-                    "%s/%s", target_path, reversed_file_name) >= sizeof(full_dest_path)) {
-            fprintf(stderr, "Path too long: %s/%s\n", target_path, reversed_file_name);
-            continue;
-        }
-
-        if (copy_file_reversed(full_src_path, full_dest_path) != 0) {
-            fprintf(stderr, "Failed to copy: %s -> %s\n", 
-                    full_src_path, full_dest_path);
-        }
-    }
-
-    closedir(dir);
     return 0;
 }
